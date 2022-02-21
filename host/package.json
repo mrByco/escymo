@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "debug": "npx nodemon src/main.ts"
+    "debug": "npx nodemon src/main.ts nodemon --ignore 'servers/*'"
   },
   "keywords": [],
   "author": "",

@@ -4,7 +4,9 @@ import {firestore} from "firebase-admin";
 import Firestore = firestore.Firestore;
 import * as fs from "fs";
 import {exec, ChildProcess} from "child_process";
-import {getServerVersionDownloadLink} from "./server_version_helper";
+import {getServerVersionDownloadLink} from "./helpers/server_version_helper";
+import {downloadFile} from "./helpers/file_download_helper";
+import {acceptEula, doesEulaExists} from "./helpers/eula_accept_helper";
 
 let fire_db: Firestore;
 let servers = new Map<string, MinecraftServer>();
@@ -35,40 +37,61 @@ function checkServerFolder(server: MinecraftServer) {
     }
 }
 
-async function checkServerFiles(){
+async function checkServerFiles() {
     // @ts-ignore
-    for (let server of servers.values()){
+    for (let server of servers.values()) {
         checkServerFolder(server);
         await checkServerJar(server);
+        startServer(server);
     }
 }
 
 function checkServerProcesses() {
     console.log(`Running servers: ${server_processes.size}`);
     servers.forEach((server) => {
-        if (!server_processes.has(server.id)){
+        if (!server_processes.has(server.id)) {
             console.log(`Server: ${server.id} is not running`);
-
         }
     });
 }
 
-async function checkServerJar(server: MinecraftServer){
-    if (!fs.existsSync(`${workingDirectory}/${server.id}/server.jar`)){
+async function checkServerJar(server: MinecraftServer) {
+    if (!fs.existsSync(`${workingDirectory}/${server.id}/server.jar`)) {
         console.log(`Could not find server file for ${server.id}\nDownloading...`);
         let downloadLink: string | null = await getServerVersionDownloadLink(server.server_version, fire_db);
-        if (!downloadLink){
+        if (!downloadLink) {
             console.log(`Could not find version: ${server.server_version}`);
+            return;
         }
+        await downloadFile(downloadLink, `${workingDirectory}/${server.id}`);
         console.log(downloadLink);
     }
 }
 
-function startServer(server: MinecraftServer){
+function runServerProcess(serverDirectory: string): ChildProcess {
+    return exec(`java -Xmx512M -Xms512M -jar server.jar nogui\n`, {cwd: serverDirectory}, (err, stdout, stderr) => {
+        console.log("message");
+        console.log(stdout);
+    });
+}
+
+async function startServer(server: MinecraftServer) {
+    console.log("starting");
+    let serverDirectory = `${workingDirectory}/${server.id}`;
+    if (!doesEulaExists(serverDirectory)){
+        let p = runServerProcess(serverDirectory);
+        await new Promise<void>(resolve => {
+            p.on('exit', function() {
+                resolve();
+            })
+        });
+        acceptEula(serverDirectory);
+    }
+    let proc = runServerProcess(serverDirectory);
 
 }
 
-async function onSnapshot(snapshot: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>){
+async function onSnapshot(snapshot: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>) {
     parseMinecraftServer(snapshot);
     await checkServerFiles();
     checkServerProcesses();
