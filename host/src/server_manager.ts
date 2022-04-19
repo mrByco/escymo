@@ -69,10 +69,15 @@ async function checkServerJar(server: MinecraftServer) {
 }
 
 function runServerProcess(serverDirectory: string): ChildProcess {
-    return exec(`java -Xmx512M -Xms512M -jar server.jar nogui\n`, {cwd: serverDirectory}, (err, stdout, stderr) => {
+    let childProcess = exec(`java -Xmx1024M -Xms1024M -jar server.jar\n`, {cwd: serverDirectory}, (err, stdout, stderr) => {
         console.log("message");
         console.log(stdout);
     });
+    process.on("beforeExit", () => {
+        childProcess?.stdin?.write("stop");
+
+    });
+    return childProcess;
 }
 
 async function startServer(server: MinecraftServer) {
